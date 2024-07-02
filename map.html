@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplayer Manhunt Game</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <style>
+        #map {
+            height: 600px; /* Adjust height as needed */
+            width: 100%; /* Adjust width as needed */
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <!-- Firebase JavaScript SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.0.2/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.2/firebase-database.js"></script>
+
+    <script>
+        // Firebase configuration (initialize with the same configuration as party.html)
+        const firebaseConfig = {
+            apiKey: "AIzaSyCoRSFMCVu3BC0uz169VVOWfTZeDC0WQPE",
+            authDomain: "manhunt-9ad07.firebaseapp.com",
+            projectId: "manhunt-9ad07",
+            storageBucket: "manhunt-9ad07.appspot.com",
+            messagingSenderId: "185214573369",
+            appId: "1:185214573369:web:93a78ed76752d259e666e8",
+            measurementId: "G-1S6M68PL7Q"
+          };
+        
+          const app = initializeApp(firebaseConfig);
+          const analytics = getAnalytics(app);
+
+        var map = L.map('map').setView([0, 0], 13); // Initial center and zoom level
+
+        // Add OpenStreetMap tile layer to the map
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+            attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Get party code from URL query parameter
+        var urlParams = new URLSearchParams(window.location.search);
+        var partyCode = urlParams.get('party');
+
+        // Reference to the Firebase database
+        var database = firebase.database();
+
+        // Initialize marker for current player
+        var playerMarker;
+
+        // Function to handle geolocation
+        function onLocationFound(e) {
+            var userLocation = {
+                lat: e.latlng.lat,
+                lng: e.latlng.lng
+            };
+
+            // Update player's location in Firebase
+            database.ref('parties/' + partyCode + '/players/' + firebase.auth().currentUser.uid).set(userLocation);
+
+            // Update player's marker on the map
+            if (!playerMarker) {
+                playerMarker = L.marker(userLocation).addTo(map);
+            } else {
+                playerMarker.setLatLng(userLocation);
+            }
+        }
+
+        function onLocationError(e) {
+            alert(e.message);
+        }
+
+        // Try to geolocate the user
+        map.locate({setView: true, maxZoom: 16});
+
+        // Handle location found and error events
+        map.on('locationfound', onLocationFound);
+        map.on('locationerror', onLocationError);
+
+        // Listen for changes in player locations from Firebase
+        database.ref('parties/' + partyCode + '/players').on('value', function(snapshot) {
+            snapshot.forEach(function(childSnapshot) {
+                var playerId = childSnapshot.key;
+                var playerLocation = childSnapshot.val();
+
+                // Update or add player's marker on the map
+                if (playerId !== firebase.auth().currentUser.uid) {
+                    var marker = markers[playerId];
+                    if (!marker) {
+                        marker = L.marker(playerLocation).addTo(map);
+                        markers[playerId] = marker;
+                    } else {
+                        marker.setLatLng(playerLocation);
+                    }
+                }
+            });
+        });
+
+        // Handle player disconnects (optional)
+        database.ref('parties/' + partyCode + '/players/' + firebase.auth().currentUser.uid).onDisconnect().remove();
+    </script>
+    
+</body>
+</html>
